@@ -26,12 +26,46 @@ struct Grid<T>{
 	height: usize,
 }
 
+#[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 enum PlaneDir {
-	North,
-	East,
-	South,
-	West,
+	North = 0u8,
+	East = 1u8,
+	South = 2u8,
+	West = 3u8,
+}
+
+impl TryFrom<u8> for PlaneDir {
+	type Error = &'static str;
+
+	fn try_from(val: u8) -> Result<Self, Self::Error> {
+		match val {
+			0 => Ok(Self::North),
+			1 => Ok(Self::East),
+			2 => Ok(Self::South),
+			3 => Ok(Self::West),
+			_ => Err("bad value for PlaneDir")
+		}
+	}
+}
+
+impl PlaneDir {
+	// gives x s.t. self.rotate(x) == other
+	pub fn rotate_diff(&self, other: PlaneDir) -> i8 {
+		(other as i8) - (*self as i8)
+	}
+
+	pub fn rotate(&self, n: i8) -> PlaneDir {
+		PlaneDir::try_from(((*self as i8) + (n as i8)).rem_euclid(4) as u8).expect("unreachable")
+	}
+
+	pub fn clockwise(&self) -> PlaneDir {
+		self.rotate(1)
+	}
+
+	pub fn anticlockwise(&self) -> PlaneDir {
+		self.rotate(-1)
+	}
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -40,15 +74,34 @@ struct DirInfo {
 	enterable: bool,
 }
 
+enum TileDirTemplate {
+	Floor,
+	SingleWall,
+	Impasse,
+	Stair,
+	Ramp,
+}
+
+enum TileType {
+	Sidewalk,
+	Freewalk,
+	Impasse,
+	Stair,
+	Ramp,
+	Road,
+}
 
 #[derive(Debug)]
 struct Tile {
+	facing: PlaneDir,
 	dir_infos: HashMap<PlaneDir, DirInfo>,
 }
 
 impl Tile {
+	pub const DEFAULT_FACING: PlaneDir = PlaneDir::North;
+
 	pub fn new() -> Tile {
-		Tile{dir_infos: HashMap::new()}
+		Tile{facing: Self::DEFAULT_FACING, dir_infos: HashMap::new()}
 	}
 
 	pub fn get(&self, dir: &PlaneDir) -> DirInfo {
@@ -130,6 +183,23 @@ mod test {
 			None => panic!("expected {} at {:?}", val, coord),
 		};
 	}
+
+	#[test]
+	pub fn test_rotate() {
+		assert_eq!(PlaneDir::North.clockwise(), PlaneDir::East);
+		assert_eq!(PlaneDir::East.clockwise(), PlaneDir::South);
+		assert_eq!(PlaneDir::South.clockwise(), PlaneDir::West);
+		assert_eq!(PlaneDir::West.clockwise(), PlaneDir::North);
+		assert_eq!(PlaneDir::North.anticlockwise(), PlaneDir::West);
+		assert_eq!(PlaneDir::East.anticlockwise(), PlaneDir::North);
+		assert_eq!(PlaneDir::South.anticlockwise(), PlaneDir::East);
+		assert_eq!(PlaneDir::West.anticlockwise(), PlaneDir::South);
+		assert_eq!(PlaneDir::North.rotate_diff(PlaneDir::South), 2);
+		assert_eq!(PlaneDir::East.rotate_diff(PlaneDir::North), -1);
+
+		let diff = PlaneDir::West.rotate_diff(PlaneDir::South);
+		assert_eq!(PlaneDir::West.rotate(diff), PlaneDir::South);
+	}
 }
 
 #[derive(Debug)]
@@ -154,13 +224,13 @@ impl Display {
 		};
 	}
 
-	pub fn draw_tile(&self, coord: Coord) {
+	pub fn draw_tile(&self, coord: &Coord, color: &Color) {
 		draw_rectangle(
 			self.origin.0 + ((coord.x as f32) * self.tiles_dim.0) + Self::TILE_MARGIN,
 			self.origin.1 + ((coord.y as f32) * self.tiles_dim.1) + Self::TILE_MARGIN,
 			self.tiles_dim.0 - Self::TILE_MARGIN * 2.0,
 			self.tiles_dim.1 - Self::TILE_MARGIN * 2.0,
-			ORANGE);
+			*color);
 	}
 }
 
@@ -179,9 +249,11 @@ async fn main() {
 		let display = Display::new(swidth, sheight, x_tiles, y_tiles);
         draw_rectangle(display.origin.0, display.origin.1, display.dim.0, display.dim.1, DARKGRAY);
 
-		display.draw_tile(Coord{x: 4, y: 10});
-		display.draw_tile(Coord{x: 4, y: 11});
-		display.draw_tile(Coord{x: 5, y: 11});
+		for x in 0..x_tiles {
+			for y in 0..y_tiles {
+				display.draw_tile(&Coord{x: x, y: y}, &Color{r: 220.0, g: 220.0, b: 220.0, a: 0.75});
+			}
+		}
 
         //draw_line(40.0, 40.0, 100.0, 200.0, 15.0, BLUE);
         //draw_circle(screen_width() - 30.0, screen_height() - 30.0, 15.0, YELLOW);
