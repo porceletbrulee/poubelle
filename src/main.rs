@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::iter::repeat_with;
-use std::panic::catch_unwind;
 
 use macroquad::prelude::*;
 
@@ -158,6 +157,7 @@ struct TileMap {
 #[cfg(test)]
 mod test {
 	use super::*;
+	use std::panic::catch_unwind;
 
 	#[test]
 	pub fn test_grid() {
@@ -204,8 +204,7 @@ mod test {
 
 #[derive(Debug)]
 struct Display {
-	origin: (f32, f32),
-	dim: (f32, f32),
+	grid_rect: Rect,
 	tile_side_len: f32,
 	grid_size: (usize, usize),
 }
@@ -214,32 +213,50 @@ impl Display {
 	const TILE_MARGIN: f32 = 1.0;
 
 	pub fn new(swidth: f32, sheight: f32, x_tiles: usize, y_tiles: usize) -> Display {
-		let display_width = swidth * 9.0 / 10.0;
-		let display_height = sheight * 9.0 / 10.0;
+		let margin_fraction = 0.025;
+		let margin = swidth * margin_fraction;
+		let usable_fraction = 1.0 - (2.0 * margin_fraction);
+
+		let grid_width = swidth * usable_fraction;
 		return Display{
-			origin: (swidth / 20.0, sheight / 20.0),
-			dim: (display_width, display_height),
+			grid_rect: Rect{x: margin, y: margin, w: grid_width, h: sheight * usable_fraction},
 			// tile should be square, pick width
-			tile_side_len: (display_width / x_tiles as f32),
+			tile_side_len: (grid_width / x_tiles as f32),
 			grid_size: (x_tiles, y_tiles),
 		};
 	}
 
-	pub fn draw_empty_tile(&self, coord: &Coord, color: &Color) {
+	pub fn draw_empty_tile(&self, coord: &Coord) {
 		draw_rectangle(
-			self.origin.0 + ((coord.x as f32) * self.tile_side_len) + Self::TILE_MARGIN,
-			self.origin.1 + ((coord.y as f32) * self.tile_side_len) + Self::TILE_MARGIN,
-			self.tile_side_len - Self::TILE_MARGIN * 2.0,
-			self.tile_side_len - Self::TILE_MARGIN * 2.0,
-			*color);
+			self.grid_rect.x + ((coord.x as f32) * self.tile_side_len) + Self::TILE_MARGIN,
+			self.grid_rect.y + ((coord.y as f32) * self.tile_side_len) + Self::TILE_MARGIN,
+			self.tile_side_len - (Self::TILE_MARGIN * 2.0),
+			self.tile_side_len - (Self::TILE_MARGIN * 2.0),
+			Color{r: 220.0, g: 220.0, b: 220.0, a: 0.75});
+	}
+
+	pub fn draw_bg(&self) {
+        draw_rectangle(
+			self.grid_rect.x,
+			self.grid_rect.y,
+			self.grid_rect.w,
+			self.grid_rect.h,
+			DARKGRAY);
+		for x in 0..self.grid_size.0 {
+			for y in 0..self.grid_size.1 {
+				self.draw_empty_tile(&Coord{x: x, y: y});
+			}
+		}
 	}
 }
 
 #[macroquad::main("BasicShapes")]
 async fn main() {
+	info!("logging check");
+
 	let x_tiles = 48;
 	let y_tiles = 32;
-	let mut g = Grid::<Tile>::new(x_tiles, y_tiles);
+	//let mut g = Grid::<Tile>::new(x_tiles, y_tiles);
 
     loop {
         clear_background(BLACK);
@@ -248,13 +265,8 @@ async fn main() {
 		let sheight = screen_height();
 
 		let display = Display::new(swidth, sheight, x_tiles, y_tiles);
-        draw_rectangle(display.origin.0, display.origin.1, display.dim.0, display.dim.1, DARKGRAY);
+		display.draw_bg();
 
-		for x in 0..x_tiles {
-			for y in 0..y_tiles {
-				display.draw_empty_tile(&Coord{x: x, y: y}, &Color{r: 220.0, g: 220.0, b: 220.0, a: 0.75});
-			}
-		}
 
         //draw_line(40.0, 40.0, 100.0, 200.0, 15.0, BLUE);
         //draw_circle(screen_width() - 30.0, screen_height() - 30.0, 15.0, YELLOW);
