@@ -206,12 +206,12 @@ mod test {
 struct Display {
 	origin: (f32, f32),
 	dim: (f32, f32),
-	tiles_dim: (f32, f32),
+	tile_side_len: f32,
 	grid_size: (usize, usize),
 }
 
 impl Display {
-	const TILE_MARGIN: f32 = 2.0;
+	const TILE_MARGIN: f32 = 1.0;
 
 	pub fn new(swidth: f32, sheight: f32, x_tiles: usize, y_tiles: usize) -> Display {
 		let display_width = swidth * 9.0 / 10.0;
@@ -219,17 +219,18 @@ impl Display {
 		return Display{
 			origin: (swidth / 20.0, sheight / 20.0),
 			dim: (display_width, display_height),
-			tiles_dim: (display_width / x_tiles as f32, display_height / y_tiles as f32),
+			// tile should be square, pick width
+			tile_side_len: (display_width / x_tiles as f32),
 			grid_size: (x_tiles, y_tiles),
 		};
 	}
 
-	pub fn draw_tile(&self, coord: &Coord, color: &Color) {
+	pub fn draw_empty_tile(&self, coord: &Coord, color: &Color) {
 		draw_rectangle(
-			self.origin.0 + ((coord.x as f32) * self.tiles_dim.0) + Self::TILE_MARGIN,
-			self.origin.1 + ((coord.y as f32) * self.tiles_dim.1) + Self::TILE_MARGIN,
-			self.tiles_dim.0 - Self::TILE_MARGIN * 2.0,
-			self.tiles_dim.1 - Self::TILE_MARGIN * 2.0,
+			self.origin.0 + ((coord.x as f32) * self.tile_side_len) + Self::TILE_MARGIN,
+			self.origin.1 + ((coord.y as f32) * self.tile_side_len) + Self::TILE_MARGIN,
+			self.tile_side_len - Self::TILE_MARGIN * 2.0,
+			self.tile_side_len - Self::TILE_MARGIN * 2.0,
 			*color);
 	}
 }
@@ -251,7 +252,7 @@ async fn main() {
 
 		for x in 0..x_tiles {
 			for y in 0..y_tiles {
-				display.draw_tile(&Coord{x: x, y: y}, &Color{r: 220.0, g: 220.0, b: 220.0, a: 0.75});
+				display.draw_empty_tile(&Coord{x: x, y: y}, &Color{r: 220.0, g: 220.0, b: 220.0, a: 0.75});
 			}
 		}
 
