@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::iter::repeat_with;
 
 use macroquad::prelude::*;
+use miniquad::conf::{Platform, WebGLVersion};
 
 type Elevation = i32;
 type ElevationDelta = i32;
@@ -232,7 +233,7 @@ impl Display {
 			self.grid_rect.y + ((coord.y as f32) * self.tile_side_len) + Self::TILE_MARGIN,
 			self.tile_side_len - (Self::TILE_MARGIN * 2.0),
 			self.tile_side_len - (Self::TILE_MARGIN * 2.0),
-			Color{r: 220.0, g: 220.0, b: 220.0, a: 0.75});
+			Color{r: 220.0, g: 220.0, b: 220.0, a: 1.0});
 	}
 
 	pub fn draw_bg(&self) {
@@ -248,9 +249,32 @@ impl Display {
 			}
 		}
 	}
+
+	pub fn get_tile_coord_from_pos(&self, pos: (f32, f32)) -> Option<Coord> {
+		if !self.grid_rect.contains(Vec2::new(pos.0, pos.1)) {
+			return None;
+		}
+
+		let x = ((pos.0 - self.grid_rect.x) / self.tile_side_len).floor() as usize;
+		let y = ((pos.1 - self.grid_rect.y) / self.tile_side_len).floor() as usize;
+
+		return Some(Coord{x: x, y: y})
+	}
 }
 
-#[macroquad::main("BasicShapes")]
+fn window_conf() -> Conf {
+	// try workarounds from https://github.com/not-fl3/macroquad/issues/924
+	Conf{
+		window_title: "pourquoi".to_owned(),
+		platform: Platform{
+			webgl_version: WebGLVersion::WebGL2,
+			..Default::default()
+		},
+		..Default::default()
+	}
+}
+
+#[macroquad::main(window_conf)]
 async fn main() {
 	info!("logging check");
 
@@ -258,19 +282,59 @@ async fn main() {
 	let y_tiles = 32;
 	//let mut g = Grid::<Tile>::new(x_tiles, y_tiles);
 
+	let swidth = 1280;
+	let sheight = 720;
+	let grid_rt = render_target(swidth, sheight);
+	//grid_rt.texture.set_filter(FilterMode::Linear);
+
+	let mut grid_camera = Camera2D::from_display_rect(Rect::new(0.0, 0.0, swidth as f32, sheight as f32));
+	grid_camera.render_target = Some(grid_rt);
+
     loop {
+		set_camera(&grid_camera);
+
         clear_background(BLACK);
+		let display = Display::new(swidth as f32, sheight as f32, x_tiles, y_tiles);
+		//display.draw_bg();
 
-		let swidth = screen_width();
-		let sheight = screen_height();
-
-		let display = Display::new(swidth, sheight, x_tiles, y_tiles);
-		display.draw_bg();
+        draw_line(40.0, 40.0, 100.0, 200.0, 15.0, BLUE);
+        draw_circle(swidth as f32 - 30.0, sheight as f32 - 30.0, 15.0, YELLOW);
+        draw_text("IT WORKS!", 20.0, 20.0, 30.0, DARKGRAY);
 
 
-        //draw_line(40.0, 40.0, 100.0, 200.0, 15.0, BLUE);
-        //draw_circle(screen_width() - 30.0, screen_height() - 30.0, 15.0, YELLOW);
-        //draw_text("IT WORKS!", 20.0, 20.0, 30.0, DARKGRAY);
+		let cam = Camera2D{
+			offset: Vec2::new(0.1, 0.2),
+			zoom: Vec2::ONE,
+			target: Vec2::ZERO,
+			..Default::default()
+		};
+
+		set_camera(&cam);
+		//set_default_camera();
+        //clear_background(BLACK);
+		draw_texture_ex(
+			&grid_camera.render_target.as_ref().unwrap().texture,
+			0.0,
+			0.0,
+			WHITE,  // pourquoi?
+			DrawTextureParams{
+				dest_size: Some(Vec2::ONE),
+				flip_y: true,
+				..Default::default()
+			},
+		);
+
+		if is_mouse_button_pressed(MouseButton::Left) {
+			let mp = mouse_position();
+			info!("mouse position {:?} {:?} {} {}",
+					mp,
+					cam,
+					cam.world_to_screen(Vec2::new(mp.0, mp.1)),
+					cam.screen_to_world(Vec2::new(mp.0, mp.1)));
+			if let Some(grid_coord) = display.get_tile_coord_from_pos(mp) {
+				info!("clicked on tile at {:?}", grid_coord);
+			}
+		}
 
         next_frame().await
     }
